@@ -1,0 +1,58 @@
+import os
+from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
+from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.common.by import By
+from os.path import join, dirname, abspath
+from selenium.webdriver.support import expected_conditions as EC
+
+driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
+driver.implicitly_wait(2)
+wait = WebDriverWait(driver, 5)
+
+
+def wait_for_correct_current_url(desired_url):
+    wait.until(
+        lambda driver: driver.current_url != desired_url)
+
+
+DIR_ROOT = dirname((abspath(__file__)))
+DIR_DATA = join(DIR_ROOT, 'data')
+os.makedirs(DIR_DATA, exist_ok=True)
+
+DIR_DATA = DIR_DATA.replace('/', '\\')
+
+options = webdriver.ChromeOptions()
+options.add_experimental_option('prefs', {
+    "download.default_directory": DIR_DATA,  # Change default directory for downloads
+    "download.prompt_for_download": False,  # To auto download the file
+    "download.directory_upgrade": True,
+    "plugins.always_open_pdf_externally": True  # It will not show PDF directly in chrome
+})
+
+base_url = 'https://www.corteidh.or.cr/casos_sentencias.cfm?lang=en'
+driver.get(base_url)
+
+WebDriverWait(driver, 30).until(
+    EC.presence_of_element_located((By.CLASS_NAME, "tr_normal.search-result.row"))
+)
+
+all_pdfs = driver.find_elements(By.CLASS_NAME, 'fa.fa-file-pdf-o.fa-lg')
+all_valid_links = list()
+base_window = driver.window_handles[0]
+for pdfs in all_pdfs:
+    pdfs.click()
+    driver.switch_to.window(driver.window_handles[1])
+    wait_for_correct_current_url(base_url)
+    url = str(driver.current_url)
+    # print(f"URL IS {url}")
+    if 'seriec' in url:
+        all_valid_links.append(url)
+    driver.close()
+    driver.switch_to.window(window_name=base_window)
+driver.close()
+driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+for l in all_valid_links:
+    driver.get(l)
+driver.close()
